@@ -1,11 +1,17 @@
 import os
 import requests
+import time
 from urllib.parse import urljoin, urlparse
 from bs4 import BeautifulSoup
 from flask import Flask, request, render_template, jsonify, session
 import datetime
+import logging
 
 app = Flask(__name__, template_folder="templates")
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 # Set a secret key for session management
 app.secret_key = os.environ.get('SECRET_KEY', 'default-secret-key')
@@ -19,27 +25,74 @@ class AdvancedVulnerabilityScanner:
         
         self.target_url = target_url if target_url.endswith('/') else target_url + '/'
         self.session = requests.Session()
-        self.session.headers["User-Agent"] = "Mozilla/5.0"
+        
+        # Enhanced headers to bypass WAF protection
+        self.session.headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+            "Accept-Language": "en-US,en;q=0.5",
+            "Accept-Encoding": "gzip, deflate, br",
+            "Connection": "keep-alive",
+            "Upgrade-Insecure-Requests": "1",
+            "Cache-Control": "max-age=0"
+        }
+        
+        # Bypass SSL verification for problematic sites
+        self.session.verify = False
+        requests.packages.urllib3.disable_warnings()
+        
+        # Timeout configuration (set to high value)
+        self.timeout = 60  # 60 seconds timeout
+        self.retries = 2   # Number of retries for failed requests
+        
         self.vulnerabilities = []
+        logger.info(f"Initialized scanner for: {self.target_url}")
 
     def load_wordlist(self, path):
         try:
             with open(path, 'r', encoding='utf-8') as f:
                 return [line.strip() for line in f if line.strip()]
         except FileNotFoundError:
-            print(f"[!] Wordlist not found: {path}")
+            logger.error(f"Wordlist not found: {path}")
             return []
         except Exception as e:
-            print(f"[!] Error loading wordlist: {e}")
+            logger.error(f"Error loading wordlist: {e}")
             return []
+
+    def safe_request(self, method, url, **kwargs):
+        """Wrapper for requests with retries and error handling"""
+        for attempt in range(self.retries + 1):
+            try:
+                # Set default timeout if not provided
+                if 'timeout' not in kwargs:
+                    kwargs['timeout'] = self.timeout
+                    
+                response = self.session.request(method, url, **kwargs)
+                response.raise_for_status()
+                return response
+            except requests.exceptions.RequestException as e:
+                logger.warning(f"Request failed (attempt {attempt+1}/{self.retries+1}): {str(e)}")
+                if attempt < self.retries:
+                    wait_time = 2 ** attempt  # Exponential backoff
+                    logger.info(f"Retrying in {wait_time} seconds...")
+                    time.sleep(wait_time)
+                else:
+                    logger.error(f"Final request failure for {url}: {str(e)}")
+                    raise
+            except Exception as e:
+                logger.error(f"Unexpected error: {str(e)}")
+                raise
 
     def get_all_forms(self, url):
         try:
-            res = self.session.get(url, timeout=10)
+            logger.info(f"Fetching forms from: {url}")
+            res = self.safe_request('GET', url)
             soup = BeautifulSoup(res.content, "html.parser")
-            return soup.find_all("form")
+            forms = soup.find_all("form")
+            logger.info(f"Found {len(forms)} forms")
+            return forms
         except Exception as e:
-            print(f"[!] Error getting forms: {e}")
+            logger.error(f"Error getting forms: {e}")
             return []
 
     def submit_form(self, form, payload, url):
@@ -48,145 +101,235 @@ class AdvancedVulnerabilityScanner:
             method = form.attrs.get("method", "get").lower()
             inputs = form.find_all("input")
             form_data = {}
+            
             for input in inputs:
                 name = input.attrs.get("name")
                 input_type = input.attrs.get("type", "text")
                 value = input.attrs.get("value", "")
-                if input_type in ["text", "search", "password", "email"]:
+                if input_type in ["text", "search", "password", "email", "number"]:
                     value = payload
                 if name:
                     form_data[name] = value
+            
             target = urljoin(url, action)
+            logger.info(f"Submitting form to: {target} with method: {method}")
+            
             if method == "post":
-                return self.session.post(target, data=form_data, timeout=10)
-            return self.session.get(target, params=form_data, timeout=10)
+                return self.safe_request('POST', target, data=form_data)
+            return self.safe_request('GET', target, params=form_data)
         except Exception as e:
-            print(f"[!] Error submitting form: {e}")
+            logger.error(f"Error submitting form: {e}")
             return None
 
+    # Vulnerability check methods (all follow the same pattern with enhanced logging)
     def check_xss(self):
+        logger.info("Starting XSS check")
         payloads = self.load_wordlist("wordlists/xss.txt")
-        if not payloads: return
+        if not payloads: 
+            logger.warning("XSS wordlist empty")
+            return
+            
+        forms = self.get_all_forms(self.target_url)
         
         for payload in payloads:
-            forms = self.get_all_forms(self.target_url)
+            logger.debug(f"Testing XSS payload: {payload}")
             for form in forms:
-                res = self.submit_form(form, payload, self.target_url)
-                if res and payload in res.text:
-                    self.vulnerabilities.append({"type": "XSS", "payload": payload})
+                try:
+                    res = self.submit_form(form, payload, self.target_url)
+                    if res and payload in res.text:
+                        logger.warning(f"XSS vulnerability found with payload: {payload}")
+                        self.vulnerabilities.append({"type": "XSS", "payload": payload})
+                except Exception as e:
+                    logger.error(f"XSS check failed for payload {payload}: {e}")
+        logger.info("Completed XSS check")
 
     def check_sql_injection(self):
+        logger.info("Starting SQL Injection check")
         payloads = self.load_wordlist("wordlists/sqli.txt")
-        if not payloads: return
-        
+        if not payloads: 
+            logger.warning("SQLi wordlist empty")
+            return
+            
         errors = ["sql syntax", "mysql_fetch", "ORA-", "unclosed quotation", "syntax error"]
+        forms = self.get_all_forms(self.target_url)
+        
         for payload in payloads:
-            forms = self.get_all_forms(self.target_url)
+            logger.debug(f"Testing SQLi payload: {payload}")
             for form in forms:
-                res = self.submit_form(form, payload, self.target_url)
-                if res and any(err in res.text.lower() for err in errors):
-                    self.vulnerabilities.append({"type": "SQL Injection", "payload": payload})
+                try:
+                    res = self.submit_form(form, payload, self.target_url)
+                    if res and any(err in res.text.lower() for err in errors):
+                        logger.warning(f"SQL Injection vulnerability found with payload: {payload}")
+                        self.vulnerabilities.append({"type": "SQL Injection", "payload": payload})
+                except Exception as e:
+                    logger.error(f"SQLi check failed for payload {payload}: {e}")
+        logger.info("Completed SQL Injection check")
+
+    # Other vulnerability check methods follow the same pattern with:
+    # 1. Method start/end logging
+    # 2. Payload-specific debug logging
+    # 3. Comprehensive error handling
+    # (Remaining methods implemented with this pattern)
 
     def check_csrf(self):
-        forms = self.get_all_forms(self.target_url)
-        for form in forms:
-            inputs = form.find_all("input")
-            if not any("csrf" in (i.attrs.get("name") or "").lower() for i in inputs):
-                self.vulnerabilities.append({"type": "CSRF", "detail": "No CSRF token found."})
-
-    def check_command_injection(self):
-        payloads = self.load_wordlist("wordlists/command_injection.txt")
-        if not payloads: return
-        
-        indicators = ["uid=", "gid=", "root", "user", "windows", "linux", "darwin"]
-        for payload in payloads:
+        logger.info("Starting CSRF check")
+        try:
             forms = self.get_all_forms(self.target_url)
             for form in forms:
-                res = self.submit_form(form, payload, self.target_url)
-                if res and any(ind in res.text.lower() for ind in indicators):
-                    self.vulnerabilities.append({"type": "Command Injection", "payload": payload})
+                inputs = form.find_all("input")
+                if not any("csrf" in (i.attrs.get("name") or "").lower() for i in inputs):
+                    logger.warning("CSRF vulnerability found - no token")
+                    self.vulnerabilities.append({"type": "CSRF", "detail": "No CSRF token found."})
+        except Exception as e:
+            logger.error(f"CSRF check failed: {e}")
+        logger.info("Completed CSRF check")
 
-    def check_directory_traversal(self):
-        payloads = self.load_wordlist("wordlists/directory_traversal.txt")
-        if not payloads: return
+    def check_command_injection(self):
+        logger.info("Starting Command Injection check")
+        payloads = self.load_wordlist("wordlists/command_injection.txt")
+        if not payloads: 
+            logger.warning("Command Injection wordlist empty")
+            return
+            
+        indicators = ["uid=", "gid=", "root", "user", "windows", "linux", "darwin"]
+        forms = self.get_all_forms(self.target_url)
         
         for payload in payloads:
+            logger.debug(f"Testing Command Injection payload: {payload}")
+            for form in forms:
+                try:
+                    res = self.submit_form(form, payload, self.target_url)
+                    if res and any(ind in res.text.lower() for ind in indicators):
+                        logger.warning(f"Command Injection vulnerability found with payload: {payload}")
+                        self.vulnerabilities.append({"type": "Command Injection", "payload": payload})
+                except Exception as e:
+                    logger.error(f"Command Injection check failed for payload {payload}: {e}")
+        logger.info("Completed Command Injection check")
+
+    def check_directory_traversal(self):
+        logger.info("Starting Directory Traversal check")
+        payloads = self.load_wordlist("wordlists/directory_traversal.txt")
+        if not payloads: 
+            logger.warning("Directory Traversal wordlist empty")
+            return
+            
+        for payload in payloads:
             try:
-                res = self.session.get(self.target_url + payload, timeout=10)
+                url = self.target_url + payload
+                logger.debug(f"Testing Directory Traversal: {url}")
+                res = self.safe_request('GET', url)
                 if "root:x" in res.text or "[extensions]" in res.text:
+                    logger.warning(f"Directory Traversal vulnerability found with payload: {payload}")
                     self.vulnerabilities.append({"type": "Directory Traversal", "payload": payload})
-            except:
-                continue
+            except Exception as e:
+                logger.error(f"Directory Traversal check failed for payload {payload}: {e}")
+        logger.info("Completed Directory Traversal check")
 
     def check_open_redirect(self):
+        logger.info("Starting Open Redirect check")
         payloads = self.load_wordlist("wordlists/open_redirect.txt")
-        if not payloads: return
-        
+        if not payloads: 
+            logger.warning("Open Redirect wordlist empty")
+            return
+            
         for payload in payloads:
             try:
                 redirect_url = f"{self.target_url}?next={payload}"
-                res = self.session.get(redirect_url, allow_redirects=False, timeout=10)
+                logger.debug(f"Testing Open Redirect: {redirect_url}")
+                res = self.safe_request('GET', redirect_url, allow_redirects=False)
                 if res.status_code in [301, 302] and payload.replace("//", "") in res.headers.get("Location", ""):
+                    logger.warning(f"Open Redirect vulnerability found with payload: {payload}")
                     self.vulnerabilities.append({"type": "Open Redirect", "payload": payload})
-            except:
-                continue
+            except Exception as e:
+                logger.error(f"Open Redirect check failed for payload {payload}: {e}")
+        logger.info("Completed Open Redirect check")
 
     def check_auth_bypass(self):
+        logger.info("Starting Auth Bypass check")
         paths = self.load_wordlist("wordlists/auth_bypass.txt")
-        if not paths: return
-        
+        if not paths: 
+            logger.warning("Auth Bypass wordlist empty")
+            return
+            
         for path in paths:
             try:
-                res = self.session.get(urljoin(self.target_url, path), timeout=10)
-                if res.status_code == 200 and ("Welcome" in res.text or "admin" in res.text):
+                url = urljoin(self.target_url, path)
+                logger.debug(f"Testing Auth Bypass: {url}")
+                res = self.safe_request('GET', url)
+                if res.status_code == 200 and ("Welcome" in res.text or "admin" in res.text or "dashboard" in res.text):
+                    logger.warning(f"Auth Bypass vulnerability found at: {path}")
                     self.vulnerabilities.append({"type": "Auth Bypass", "url": path})
-            except:
-                continue
+            except Exception as e:
+                logger.error(f"Auth Bypass check failed for path {path}: {e}")
+        logger.info("Completed Auth Bypass check")
 
     def check_clickjacking(self):
+        logger.info("Starting Clickjacking check")
         try:
-            res = self.session.get(self.target_url, timeout=10)
+            res = self.safe_request('GET', self.target_url)
             if "x-frame-options" not in res.headers:
+                logger.warning("Clickjacking vulnerability found")
                 self.vulnerabilities.append({"type": "Clickjacking", "detail": "Missing X-Frame-Options header."})
-        except:
-            return
+        except Exception as e:
+            logger.error(f"Clickjacking check failed: {e}")
+        logger.info("Completed Clickjacking check")
 
     def check_security_headers(self):
+        logger.info("Starting Security Headers check")
         try:
-            res = self.session.get(self.target_url, timeout=10)
+            res = self.safe_request('GET', self.target_url)
             headers = ["X-Frame-Options", "Content-Security-Policy", "X-XSS-Protection", "Strict-Transport-Security"]
             for h in headers:
                 if h not in res.headers:
+                    logger.warning(f"Missing security header: {h}")
                     self.vulnerabilities.append({"type": "Missing Security Header", "header": h})
-        except:
-            return
+        except Exception as e:
+            logger.error(f"Security Headers check failed: {e}")
+        logger.info("Completed Security Headers check")
 
     def check_info_disclosure(self):
+        logger.info("Starting Info Disclosure check")
         paths = self.load_wordlist("wordlists/info_disclosure_paths.txt")
-        if not paths: return
-        
+        if not paths: 
+            logger.warning("Info Disclosure wordlist empty")
+            return
+            
         for path in paths:
             try:
-                res = self.session.get(urljoin(self.target_url, path), timeout=10)
-                if res.status_code == 200 and any(ext in path for ext in [".git", ".svn", ".bak", ".zip", ".env"]):
+                url = urljoin(self.target_url, path)
+                logger.debug(f"Testing Info Disclosure: {url}")
+                res = self.safe_request('GET', url)
+                if res.status_code == 200 and any(ext in path for ext in [".git", ".svn", ".bak", ".zip", ".env", ".DS_Store"]):
+                    logger.warning(f"Info Disclosure vulnerability found at: {path}")
                     self.vulnerabilities.append({"type": "Info Disclosure", "url": path})
-            except:
-                continue
+            except Exception as e:
+                logger.error(f"Info Disclosure check failed for path {path}: {e}")
+        logger.info("Completed Info Disclosure check")
 
     def check_crlf_injection(self):
+        logger.info("Starting CRLF Injection check")
         payloads = self.load_wordlist("wordlists/crlf.txt")
-        if not payloads: return
-        
+        if not payloads: 
+            logger.warning("CRLF Injection wordlist empty")
+            return
+            
         for payload in payloads:
             try:
-                res = self.session.get(self.target_url + payload, timeout=10)
-                if "injected" in res.headers.get("Set-Cookie", ""):
+                url = self.target_url + payload
+                logger.debug(f"Testing CRLF Injection: {url}")
+                res = self.safe_request('GET', url)
+                if "injected" in res.headers.get("Set-Cookie", "") or "injected" in res.headers.get("Location", ""):
+                    logger.warning(f"CRLF Injection vulnerability found with payload: {payload}")
                     self.vulnerabilities.append({"type": "CRLF Injection", "payload": payload})
-            except:
-                continue
+            except Exception as e:
+                logger.error(f"CRLF Injection check failed for payload {payload}: {e}")
+        logger.info("Completed CRLF Injection check")
 
     def scan(self):
-        # Run all checks with try-except to prevent single failure from stopping entire scan
+        logger.info(f"Starting comprehensive scan of: {self.target_url}")
+        start_time = time.time()
+        
+        # Run all checks
         checks = [
             self.check_xss,
             self.check_sql_injection,
@@ -203,11 +346,14 @@ class AdvancedVulnerabilityScanner:
         
         for check in checks:
             try:
+                logger.info(f"Executing check: {check.__name__}")
                 check()
             except Exception as e:
-                print(f"[!] Check failed: {e}")
+                logger.error(f"Check {check.__name__} failed: {e}")
                 continue
 
+        scan_duration = time.time() - start_time
+        logger.info(f"Scan completed in {scan_duration:.2f} seconds. Found {len(self.vulnerabilities)} vulnerabilities")
         return self.vulnerabilities
 
 @app.route('/')
@@ -221,6 +367,7 @@ def scan_api():
         if not data or 'url' not in data:
             return jsonify({"error": "URL missing"}), 400
             
+        logger.info(f"Starting scan for: {data['url']}")
         scanner = AdvancedVulnerabilityScanner(data['url'])
         vulnerabilities = scanner.scan()
         
@@ -229,14 +376,16 @@ def scan_api():
         session['scan_url'] = data['url']
         session['scan_time'] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         
+        logger.info(f"Scan completed for {data['url']}. Found {len(vulnerabilities)} vulnerabilities")
         return jsonify({
             "redirect": "/results"
         })
         
     except Exception as e:
+        logger.error(f"Scan failed: {str(e)}", exc_info=True)
         return jsonify({
             "error": "Scan failed",
-            "details": str(e)
+            "details": "Check server logs for more information"
         }), 500
 
 @app.route('/results')
@@ -252,4 +401,11 @@ if __name__ == '__main__':
     # Use environment variable for debug mode
     debug_mode = os.environ.get("FLASK_DEBUG", "false").lower() == "true"
     port = int(os.environ.get("PORT", 5000))
+    
+    # Configure logging level
+    if debug_mode:
+        logging.getLogger().setLevel(logging.DEBUG)
+    else:
+        logging.getLogger().setLevel(logging.INFO)
+    
     app.run(debug=debug_mode, host='0.0.0.0', port=port)
