@@ -5,6 +5,15 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>URL Vulnerability Scanner</title>
   <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+    .animate-pulse-custom {
+      animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+    }
+  </style>
 </head>
 <body class="bg-gray-100 min-h-screen flex items-center justify-center p-6">
   <div class="bg-white rounded-xl shadow-xl p-8 w-full max-w-2xl">
@@ -16,41 +25,50 @@
       type="url"
       required
       placeholder="https://example.com or http://localhost"
-      class="w-full p-3 border rounded mb-4"
+      class="w-full p-3 border rounded mb-4 focus:ring-2 focus:ring-purple-500 focus:outline-none"
     />
 
     <!-- Scan Button -->
     <button
       id="scan-btn"
-      class="bg-purple-600 text-white px-6 py-2 rounded hover:bg-purple-700"
+      class="bg-purple-600 text-white px-6 py-2 rounded hover:bg-purple-700 transition duration-200 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-opacity-50"
     >Scan</button>
 
-    <!-- Loading Text -->
-    <p id="loading" class="text-gray-500 mt-2 hidden">🔍 Scanning... Please wait.</p>
-
-    <!-- Results Box -->
-    <div id="results" class="mt-6 hidden">
-      <h2 class="font-semibold mb-2 text-lg">Results:</h2>
-      <pre id="output-box" class="bg-black text-green-400 p-4 rounded overflow-auto max-h-96"></pre>
+    <!-- Loading Indicator -->
+    <div id="loading" class="mt-4 hidden">
+      <div class="flex items-center">
+        <div class="w-5 h-5 mr-3">
+          <svg class="animate-spin h-5 w-5 text-purple-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+          </svg>
+        </div>
+        <p class="text-gray-600 animate-pulse-custom">Scanning website. This may take a minute...</p>
+      </div>
     </div>
+
+    <!-- Error Box -->
+    <div id="error-box" class="mt-4 p-3 bg-red-100 text-red-700 rounded hidden"></div>
   </div>
 
-  <!-- JavaScript Section -->
   <script>
     const scanBtn = document.getElementById("scan-btn");
     const urlInput = document.getElementById("url-input");
-    const outputBox = document.getElementById("output-box");
-    const resultsBox = document.getElementById("results");
     const loading = document.getElementById("loading");
+    const errorBox = document.getElementById("error-box");
 
     scanBtn.addEventListener("click", () => {
       const url = urlInput.value.trim();
-      if (!url) return alert("Enter a valid URL");
+      if (!url) {
+        showError("Please enter a valid URL");
+        return;
+      }
 
       // Start loader and disable button
       loading.classList.remove("hidden");
-      resultsBox.classList.add("hidden");
+      errorBox.classList.add("hidden");
       scanBtn.disabled = true;
+      urlInput.disabled = true;
 
       fetch("/scan", {
         method: "POST",
@@ -60,35 +78,37 @@
       .then(async res => {
         const contentType = res.headers.get("content-type");
         
-        // Handle non-JSON responses
         if (!contentType || !contentType.includes("application/json")) {
           const text = await res.text();
           throw new Error(`Server error: ${text.slice(0, 100)}`);
         }
         
         const data = await res.json();
-        if (data.error) {
+        if (!res.ok) {
           throw new Error(data.error + (data.details ? `: ${data.details}` : ''));
         }
         
-        // If we have a redirect URL, go to results page
+        // Redirect to results page
         if (data.redirect) {
           window.location.href = data.redirect;
         } else {
-          // Show results in the same page (fallback)
-          outputBox.textContent = JSON.stringify(data, null, 2);
-          resultsBox.classList.remove("hidden");
+          throw new Error("Missing redirect instruction");
         }
       })
       .catch(err => {
-        outputBox.textContent = `❌ Error: ${err.message}`;
-        resultsBox.classList.remove("hidden");
+        showError(`Error: ${err.message}`);
       })
       .finally(() => {
         loading.classList.add("hidden");
         scanBtn.disabled = false;
+        urlInput.disabled = false;
       });
     });
+
+    function showError(message) {
+      errorBox.textContent = message;
+      errorBox.classList.remove("hidden");
+    }
   </script>
 </body>
 </html>
