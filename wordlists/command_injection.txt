@@ -1,0 +1,16 @@
+;id
+|id
+&id
+&&id
+`id`
+$(id)
+; ping -c 1 localhost
+| ping -c 1 localhost
+`ping localhost`
+$(ping localhost)
+\nid\n
+; cat /etc/passwd
+| ls -la /
+`echo test`
+$(echo test)
+; whoami && pwd

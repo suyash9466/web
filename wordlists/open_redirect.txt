@@ -1,0 +1,15 @@
+//google.com
+https://google.com
+http://evil.com
+//evil.com/%23
+/google.com
+/%09/google.com
+/%5cevil.com
+/redirect?url=https://evil.com
+/login?next=https://evil.com
+/auth?return=https://evil.com
+?url=//evil.com
+?next=//evil.com
+?redirect=https://evil.com
+?rurl=http://evil.com
+?u=https://evil.com

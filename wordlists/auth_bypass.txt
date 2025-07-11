@@ -1,0 +1,15 @@
+/admin
+/admin.php
+/admin/
+/admin/%2e%2e
+/admin/..;/login
+/console
+/manager/html
+/wp-admin
+/wp-login.php
+/dashboard
+/controlpanel
+/secure
+/private
+/backup
+/config

