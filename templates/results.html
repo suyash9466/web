@@ -5,33 +5,63 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Scan Results</title>
   <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    .vulnerability-item {
+      transition: all 0.3s ease;
+    }
+    .vulnerability-item:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+    }
+    .severity-high {
+      background-color: #fee2e2;
+      border-color: #ef4444;
+    }
+    .severity-medium {
+      background-color: #fef3c7;
+      border-color: #f59e0b;
+    }
+    .severity-low {
+      background-color: #dbeafe;
+      border-color: #3b82f6;
+    }
+    pre {
+      white-space: pre-wrap;
+      word-break: break-all;
+    }
+  </style>
 </head>
 <body class="bg-gray-100 min-h-screen flex items-center justify-center p-6">
   <div class="bg-white rounded-xl shadow-xl p-8 w-full max-w-4xl">
-    <div class="flex justify-between items-start mb-6">
-      <div>
+    <div class="flex flex-col sm:flex-row justify-between items-start mb-6 gap-4">
+      <div class="flex-1">
         <h1 class="text-2xl font-bold text-purple-700">Scan Results</h1>
-        <div class="mt-2 text-gray-600">
+        <div class="mt-2 text-gray-600 truncate">
           <span class="font-semibold">URL:</span> {{ scan_url }}
         </div>
         <div class="text-gray-600">
           <span class="font-semibold">Time:</span> {{ scan_time }}
         </div>
       </div>
-      <a href="/" class="bg-purple-600 text-white px-4 py-2 rounded hover:bg-purple-700">
+      <a href="/" class="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded transition duration-200 whitespace-nowrap">
         New Scan
       </a>
     </div>
 
     <!-- Results Summary -->
     <div class="mb-6 p-4 rounded-lg 
-                {{ 'bg-red-100 text-red-800' if vulnerabilities else 'bg-green-100 text-green-800' }}">
+                {% if vulnerabilities %} bg-red-100 text-red-800
+                {% else %} bg-green-100 text-green-800 {% endif %}">
       <div class="flex items-center">
         <span class="text-xl mr-3">
-          {{ '⚠️' if vulnerabilities else '✅' }}
+          {% if vulnerabilities %} ⚠️ {% else %} ✅ {% endif %}
         </span>
         <span class="font-semibold">
-          {{ vulnerabilities|length }} vulnerability{{ 'ies' if vulnerabilities|length != 1 else 'y' }} found
+          {% if vulnerabilities %}
+            {{ vulnerabilities|length }} vulnerability{{ 'ies' if vulnerabilities|length != 1 else 'y' }} found
+          {% else %}
+            No vulnerabilities found!
+          {% endif %}
         </span>
       </div>
     </div>
@@ -40,25 +70,43 @@
     {% if vulnerabilities %}
     <div class="space-y-4 max-h-[60vh] overflow-y-auto pr-2">
       {% for vuln in vulnerabilities %}
-      <div class="border-l-4 {{ 'border-red-500' if vuln.type in ['SQL Injection', 'Command Injection'] else 'border-yellow-500' }} pl-4 py-2">
-        <div class="flex justify-between">
-          <h3 class="font-semibold">{{ vuln.type }}</h3>
-          <span class="px-2 py-1 rounded text-xs 
-                      {{ 'bg-red-200 text-red-800' if vuln.type in ['SQL Injection', 'Command Injection'] else 'bg-yellow-200 text-yellow-800' }}">
-            {{ 'High' if vuln.type in ['SQL Injection', 'Command Injection'] else 'Medium' }}
-          </span>
-        </div>
+        {% if vuln.type in ['SQL Injection', 'Command Injection', 'Directory Traversal'] %}
+          {% set severity_class = 'severity-high' %}
+          {% set severity_text = 'High' %}
+        {% elif vuln.type in ['XSS', 'Auth Bypass', 'CRLF Injection'] %}
+          {% set severity_class = 'severity-medium' %}
+          {% set severity_text = 'Medium' %}
+        {% else %}
+          {% set severity_class = 'severity-low' %}
+          {% set severity_text = 'Low' %}
+        {% endif %}
         
-        <div class="mt-1 text-sm text-gray-700">
-          {% if vuln.payload %}
-            Payload: <code class="bg-gray-100 p-1 rounded">{{ vuln.payload }}</code>
-          {% elif vuln.url %}
-            Path: <code class="bg-gray-100 p-1 rounded">{{ vuln.url }}</code>
-          {% elif vuln.detail %}
-            {{ vuln.detail }}
-          {% endif %}
+        <div class="vulnerability-item border-l-4 pl-4 py-3 rounded-r {{ severity_class }}">
+          <div class="flex flex-col sm:flex-row justify-between gap-2">
+            <div>
+              <h3 class="font-bold text-lg">{{ vuln.type }}</h3>
+              {% if vuln.payload %}
+                <div class="mt-1">
+                  <span class="font-medium">Payload:</span>
+                  <pre class="bg-gray-800 text-green-400 p-2 rounded mt-1 text-sm">{{ vuln.payload }}</pre>
+                </div>
+              {% elif vuln.url %}
+                <div class="mt-1">
+                  <span class="font-medium">Path:</span>
+                  <pre class="bg-gray-800 text-green-400 p-2 rounded mt-1 text-sm">{{ vuln.url }}</pre>
+                </div>
+              {% elif vuln.detail %}
+                <p class="mt-1 text-gray-700">{{ vuln.detail }}</p>
+              {% endif %}
+            </div>
+            <span class="px-3 py-1 rounded-full self-start sm:self-center
+                        {% if severity_text == 'High' %} bg-red-200 text-red-800
+                        {% elif severity_text == 'Medium' %} bg-yellow-200 text-yellow-800
+                        {% else %} bg-blue-200 text-blue-800 {% endif %}">
+              {{ severity_text }}
+            </span>
+          </div>
         </div>
-      </div>
       {% endfor %}
     </div>
     {% else %}
@@ -66,6 +114,11 @@
       <div class="text-5xl mb-4">🎉</div>
       <h2 class="text-xl font-semibold text-gray-800">No Vulnerabilities Found!</h2>
       <p class="text-gray-600 mt-2">The target appears secure for the tested vulnerabilities.</p>
+      <div class="mt-6">
+        <a href="/" class="inline-block bg-purple-600 hover:bg-purple-700 text-white px-6 py-2 rounded transition duration-200">
+          Scan Another Website
+        </a>
+      </div>
     </div>
     {% endif %}
   </div>
