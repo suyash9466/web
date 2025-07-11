@@ -1,7 +1,8 @@
-# advanced_scanner.py (Flask + Wordlist Support, 14 Vulns + HTML UI Integration)
+# advanced_scanner.py
+
 import os
 import requests
-from urllib.parse import urljoin, urlparse
+from urllib.parse import urljoin
 from bs4 import BeautifulSoup
 from flask import Flask, request, render_template, jsonify
 
@@ -23,9 +24,12 @@ class AdvancedVulnerabilityScanner:
             return []
 
     def get_all_forms(self, url):
-        res = self.session.get(url)
-        soup = BeautifulSoup(res.content, "html.parser")
-        return soup.find_all("form")
+        try:
+            res = self.session.get(url)
+            soup = BeautifulSoup(res.content, "html.parser")
+            return soup.find_all("form")
+        except:
+            return []
 
     def submit_form(self, form, payload, url):
         action = form.attrs.get("action", "").lower()
