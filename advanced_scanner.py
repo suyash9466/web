@@ -2,13 +2,17 @@ import os
 import requests
 from urllib.parse import urljoin, urlparse
 from bs4 import BeautifulSoup
-from flask import Flask, request, render_template, jsonify
+from flask import Flask, request, render_template, jsonify, session
+import datetime
 
 app = Flask(__name__, template_folder="templates")
 
+# Set a secret key for session management
+app.secret_key = os.environ.get('SECRET_KEY', 'default-secret-key')
+
 class AdvancedVulnerabilityScanner:
     def __init__(self, target_url):
-        # Validate and format URL
+        # Validate URL format
         parsed = urlparse(target_url)
         if not parsed.scheme or not parsed.netloc:
             raise ValueError("Invalid URL format")
@@ -185,12 +189,7 @@ class AdvancedVulnerabilityScanner:
                 print(f"[!] Check failed: {e}")
                 continue
 
-        if not self.vulnerabilities:
-            return "[+] No vulnerabilities found."
-        result = "[+] Vulnerabilities Found:\n"
-        for v in self.vulnerabilities:
-            result += f" - {v['type']} => {v.get('payload') or v.get('url') or v.get('header') or v.get('detail', '')}\n"
-        return result
+        return self.vulnerabilities
 
 @app.route('/')
 def index():
@@ -204,14 +203,31 @@ def scan_api():
             return jsonify({"error": "URL missing"}), 400
             
         scanner = AdvancedVulnerabilityScanner(data['url'])
-        result = scanner.scan()
-        return jsonify({"output": result})
+        vulnerabilities = scanner.scan()
+        
+        # Store results in session
+        session['vulnerabilities'] = vulnerabilities
+        session['scan_url'] = data['url']
+        session['scan_time'] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        
+        return jsonify({
+            "redirect": "/results"
+        })
         
     except Exception as e:
         return jsonify({
             "error": "Scan failed",
             "details": str(e)
         }), 500
+
+@app.route('/results')
+def results():
+    return render_template(
+        "results.html",
+        vulnerabilities=session.get('vulnerabilities', []),
+        scan_url=session.get('scan_url', 'Unknown URL'),
+        scan_time=session.get('scan_time', 'Unknown time')
+    )
 
 if __name__ == '__main__':
     # Use environment variable for debug mode
