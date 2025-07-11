@@ -1,4 +1,5 @@
-Flask
-gunicorn
-requests
-beautifulsoup4
+flask==3.0.2
+requests==2.31.0
+beautifulsoup4==4.12.3
+cloudscraper==1.2.68
+stem==1.8.2
