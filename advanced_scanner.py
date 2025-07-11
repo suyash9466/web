@@ -29,10 +29,13 @@ class AdvancedVulnerabilityScanner:
         except FileNotFoundError:
             print(f"[!] Wordlist not found: {path}")
             return []
+        except Exception as e:
+            print(f"[!] Error loading wordlist: {e}")
+            return []
 
     def get_all_forms(self, url):
         try:
-            res = self.session.get(url)
+            res = self.session.get(url, timeout=10)
             soup = BeautifulSoup(res.content, "html.parser")
             return soup.find_all("form")
         except Exception as e:
@@ -55,14 +58,16 @@ class AdvancedVulnerabilityScanner:
                     form_data[name] = value
             target = urljoin(url, action)
             if method == "post":
-                return self.session.post(target, data=form_data)
-            return self.session.get(target, params=form_data)
+                return self.session.post(target, data=form_data, timeout=10)
+            return self.session.get(target, params=form_data, timeout=10)
         except Exception as e:
             print(f"[!] Error submitting form: {e}")
             return None
 
     def check_xss(self):
         payloads = self.load_wordlist("wordlists/xss.txt")
+        if not payloads: return
+        
         for payload in payloads:
             forms = self.get_all_forms(self.target_url)
             for form in forms:
@@ -72,6 +77,8 @@ class AdvancedVulnerabilityScanner:
 
     def check_sql_injection(self):
         payloads = self.load_wordlist("wordlists/sqli.txt")
+        if not payloads: return
+        
         errors = ["sql syntax", "mysql_fetch", "ORA-", "unclosed quotation", "syntax error"]
         for payload in payloads:
             forms = self.get_all_forms(self.target_url)
@@ -89,6 +96,8 @@ class AdvancedVulnerabilityScanner:
 
     def check_command_injection(self):
         payloads = self.load_wordlist("wordlists/command_injection.txt")
+        if not payloads: return
+        
         indicators = ["uid=", "gid=", "root", "user", "windows", "linux", "darwin"]
         for payload in payloads:
             forms = self.get_all_forms(self.target_url)
@@ -99,9 +108,11 @@ class AdvancedVulnerabilityScanner:
 
     def check_directory_traversal(self):
         payloads = self.load_wordlist("wordlists/directory_traversal.txt")
+        if not payloads: return
+        
         for payload in payloads:
             try:
-                res = self.session.get(self.target_url + payload)
+                res = self.session.get(self.target_url + payload, timeout=10)
                 if "root:x" in res.text or "[extensions]" in res.text:
                     self.vulnerabilities.append({"type": "Directory Traversal", "payload": payload})
             except:
@@ -109,10 +120,12 @@ class AdvancedVulnerabilityScanner:
 
     def check_open_redirect(self):
         payloads = self.load_wordlist("wordlists/open_redirect.txt")
+        if not payloads: return
+        
         for payload in payloads:
             try:
                 redirect_url = f"{self.target_url}?next={payload}"
-                res = self.session.get(redirect_url, allow_redirects=False)
+                res = self.session.get(redirect_url, allow_redirects=False, timeout=10)
                 if res.status_code in [301, 302] and payload.replace("//", "") in res.headers.get("Location", ""):
                     self.vulnerabilities.append({"type": "Open Redirect", "payload": payload})
             except:
@@ -120,9 +133,11 @@ class AdvancedVulnerabilityScanner:
 
     def check_auth_bypass(self):
         paths = self.load_wordlist("wordlists/auth_bypass.txt")
+        if not paths: return
+        
         for path in paths:
             try:
-                res = self.session.get(urljoin(self.target_url, path))
+                res = self.session.get(urljoin(self.target_url, path), timeout=10)
                 if res.status_code == 200 and ("Welcome" in res.text or "admin" in res.text):
                     self.vulnerabilities.append({"type": "Auth Bypass", "url": path})
             except:
@@ -130,7 +145,7 @@ class AdvancedVulnerabilityScanner:
 
     def check_clickjacking(self):
         try:
-            res = self.session.get(self.target_url)
+            res = self.session.get(self.target_url, timeout=10)
             if "x-frame-options" not in res.headers:
                 self.vulnerabilities.append({"type": "Clickjacking", "detail": "Missing X-Frame-Options header."})
         except:
@@ -138,7 +153,7 @@ class AdvancedVulnerabilityScanner:
 
     def check_security_headers(self):
         try:
-            res = self.session.get(self.target_url)
+            res = self.session.get(self.target_url, timeout=10)
             headers = ["X-Frame-Options", "Content-Security-Policy", "X-XSS-Protection", "Strict-Transport-Security"]
             for h in headers:
                 if h not in res.headers:
@@ -148,9 +163,11 @@ class AdvancedVulnerabilityScanner:
 
     def check_info_disclosure(self):
         paths = self.load_wordlist("wordlists/info_disclosure_paths.txt")
+        if not paths: return
+        
         for path in paths:
             try:
-                res = self.session.get(urljoin(self.target_url, path))
+                res = self.session.get(urljoin(self.target_url, path), timeout=10)
                 if res.status_code == 200 and any(ext in path for ext in [".git", ".svn", ".bak", ".zip", ".env"]):
                     self.vulnerabilities.append({"type": "Info Disclosure", "url": path})
             except:
@@ -158,9 +175,11 @@ class AdvancedVulnerabilityScanner:
 
     def check_crlf_injection(self):
         payloads = self.load_wordlist("wordlists/crlf.txt")
+        if not payloads: return
+        
         for payload in payloads:
             try:
-                res = self.session.get(self.target_url + payload)
+                res = self.session.get(self.target_url + payload, timeout=10)
                 if "injected" in res.headers.get("Set-Cookie", ""):
                     self.vulnerabilities.append({"type": "CRLF Injection", "payload": payload})
             except:
@@ -232,4 +251,5 @@ def results():
 if __name__ == '__main__':
     # Use environment variable for debug mode
     debug_mode = os.environ.get("FLASK_DEBUG", "false").lower() == "true"
-    app.run(debug=debug_mode, host='0.0.0.0', port=int(os.environ.get("PORT", 5000)))
+    port = int(os.environ.get("PORT", 5000))
+    app.run(debug=debug_mode, host='0.0.0.0', port=port)
