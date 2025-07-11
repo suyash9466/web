@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Scan Results</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 min-h-screen flex items-center justify-center p-6">
+  <div class="bg-white rounded-xl shadow-xl p-8 w-full max-w-4xl">
+    <div class="flex justify-between items-start mb-6">
+      <div>
+        <h1 class="text-2xl font-bold text-purple-700">Scan Results</h1>
+        <div class="mt-2 text-gray-600">
+          <span class="font-semibold">URL:</span> {{ scan_url }}
+        </div>
+        <div class="text-gray-600">
+          <span class="font-semibold">Time:</span> {{ scan_time }}
+        </div>
+      </div>
+      <a href="/" class="bg-purple-600 text-white px-4 py-2 rounded hover:bg-purple-700">
+        New Scan
+      </a>
+    </div>
+
+    <!-- Results Summary -->
+    <div class="mb-6 p-4 rounded-lg 
+                {{ 'bg-red-100 text-red-800' if vulnerabilities else 'bg-green-100 text-green-800' }}">
+      <div class="flex items-center">
+        <span class="text-xl mr-3">
+          {{ '⚠️' if vulnerabilities else '✅' }}
+        </span>
+        <span class="font-semibold">
+          {{ vulnerabilities|length }} vulnerability{{ 'ies' if vulnerabilities|length != 1 else 'y' }} found
+        </span>
+      </div>
+    </div>
+
+    <!-- Vulnerability List -->
+    {% if vulnerabilities %}
+    <div class="space-y-4 max-h-[60vh] overflow-y-auto pr-2">
+      {% for vuln in vulnerabilities %}
+      <div class="border-l-4 {{ 'border-red-500' if vuln.type in ['SQL Injection', 'Command Injection'] else 'border-yellow-500' }} pl-4 py-2">
+        <div class="flex justify-between">
+          <h3 class="font-semibold">{{ vuln.type }}</h3>
+          <span class="px-2 py-1 rounded text-xs 
+                      {{ 'bg-red-200 text-red-800' if vuln.type in ['SQL Injection', 'Command Injection'] else 'bg-yellow-200 text-yellow-800' }}">
+            {{ 'High' if vuln.type in ['SQL Injection', 'Command Injection'] else 'Medium' }}
+          </span>
+        </div>
+        
+        <div class="mt-1 text-sm text-gray-700">
+          {% if vuln.payload %}
+            Payload: <code class="bg-gray-100 p-1 rounded">{{ vuln.payload }}</code>
+          {% elif vuln.url %}
+            Path: <code class="bg-gray-100 p-1 rounded">{{ vuln.url }}</code>
+          {% elif vuln.detail %}
+            {{ vuln.detail }}
+          {% endif %}
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="text-center py-8">
+      <div class="text-5xl mb-4">🎉</div>
+      <h2 class="text-xl font-semibold text-gray-800">No Vulnerabilities Found!</h2>
+      <p class="text-gray-600 mt-2">The target appears secure for the tested vulnerabilities.</p>
+    </div>
+    {% endif %}
+  </div>
+</body>
+</html>
