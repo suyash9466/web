@@ -8,6 +8,7 @@ from bs4 import BeautifulSoup
 from flask import Flask, request, render_template, jsonify, session
 import datetime
 import ssl
+import socket
 import urllib3
 from urllib3.exceptions import InsecureRequestWarning
 
@@ -46,9 +47,8 @@ class AdvancedVulnerabilityScanner:
         }
         
         # SSL certificate handling
-        self.ssl_verified = False
-        self.cert_details = {}
         self.session.verify = False  # Disable SSL verification by default
+        self.cert_details = {}
         
         # Timeout and retry configuration
         self.timeout = 30
@@ -57,42 +57,6 @@ class AdvancedVulnerabilityScanner:
         
         self.vulnerabilities = []
         logger.info(f"Scanner initialized for: {self.target_url}")
-
-    def check_ssl_certificate(self):
-        """Check SSL certificate details for the target URL"""
-        try:
-            hostname = urlparse(self.target_url).hostname
-            port = 443
-            
-            # Create SSL context
-            context = ssl.create_default_context()
-            context.check_hostname = True
-            
-            # Connect to server
-            with socket.create_connection((hostname, port)) as sock:
-                with context.wrap_socket(sock, server_hostname=hostname) as ssock:
-                    cert = ssock.getpeercert()
-            
-            # Parse certificate details
-            self.cert_details = {
-                'subject': dict(x[0] for x in cert['subject']),
-                'issuer': dict(x[0] for x in cert['issuer']),
-                'version': cert.get('version'),
-                'serialNumber': cert.get('serialNumber'),
-                'notBefore': cert.get('notBefore'),
-                'notAfter': cert.get('notAfter'),
-                'subjectAltName': cert.get('subjectAltName', []),
-            }
-            
-            self.ssl_verified = True
-            logger.info(f"SSL certificate verified for {hostname}")
-            
-        except Exception as e:
-            logger.warning(f"SSL certificate check failed: {str(e)}")
-            self.vulnerabilities.append({
-                "type": "SSL/TLS Issue",
-                "detail": f"Certificate verification failed: {str(e)}"
-            })
 
     def safe_request(self, method, url, **kwargs):
         """Robust request handling with retries and delays"""
@@ -105,11 +69,8 @@ class AdvancedVulnerabilityScanner:
                 if 'timeout' not in kwargs:
                     kwargs['timeout'] = self.timeout
                     
-                # Set SSL verification based on previous check
-                if self.ssl_verified:
-                    kwargs['verify'] = True
-                else:
-                    kwargs['verify'] = False
+                # Always disable SSL verification for now
+                kwargs['verify'] = False
                     
                 response = self.session.request(method, url, **kwargs)
                 response.raise_for_status()
@@ -149,7 +110,7 @@ class AdvancedVulnerabilityScanner:
         try:
             logger.info(f"Fetching forms from: {url}")
             res = self.safe_request('GET', url)
-            if res is None:
+            if res is None or res.status_code != 200:
                 return []
                 
             soup = BeautifulSoup(res.content, "html.parser")
@@ -186,18 +147,22 @@ class AdvancedVulnerabilityScanner:
             logger.error(f"Error submitting form: {e}")
             return None
 
-    # Vulnerability checks with comprehensive error handling
+    # Vulnerability checks
     def check_xss(self):
         try:
             logger.info("Starting XSS check")
             payloads = self.load_wordlist("wordlists/xss.txt") or []
+            if not payloads:
+                return
+                
             forms = self.get_all_forms(self.target_url)
             
             for payload in payloads:
                 for form in forms:
                     res = self.submit_form(form, payload, self.target_url)
-                    if res and payload in res.text:
+                    if res and res.status_code == 200 and payload in res.text:
                         self.vulnerabilities.append({"type": "XSS", "payload": payload})
+                        break  # Move to next payload after first hit
         except Exception as e:
             logger.error(f"XSS check failed: {e}")
         finally:
@@ -207,14 +172,18 @@ class AdvancedVulnerabilityScanner:
         try:
             logger.info("Starting SQL Injection check")
             payloads = self.load_wordlist("wordlists/sqli.txt") or []
+            if not payloads:
+                return
+                
             errors = ["sql syntax", "mysql_fetch", "ORA-", "unclosed quotation", "syntax error"]
             forms = self.get_all_forms(self.target_url)
             
             for payload in payloads:
                 for form in forms:
                     res = self.submit_form(form, payload, self.target_url)
-                    if res and any(err in res.text.lower() for err in errors):
+                    if res and res.status_code == 200 and any(err in res.text.lower() for err in errors):
                         self.vulnerabilities.append({"type": "SQL Injection", "payload": payload})
+                        break  # Move to next payload after first hit
         except Exception as e:
             logger.error(f"SQL Injection check failed: {e}")
         finally:
@@ -237,14 +206,18 @@ class AdvancedVulnerabilityScanner:
         try:
             logger.info("Starting Command Injection check")
             payloads = self.load_wordlist("wordlists/command_injection.txt") or []
+            if not payloads:
+                return
+                
             indicators = ["uid=", "gid=", "root", "user"]
             forms = self.get_all_forms(self.target_url)
             
             for payload in payloads:
                 for form in forms:
                     res = self.submit_form(form, payload, self.target_url)
-                    if res and any(ind in res.text.lower() for ind in indicators):
+                    if res and res.status_code == 200 and any(ind in res.text.lower() for ind in indicators):
                         self.vulnerabilities.append({"type": "Command Injection", "payload": payload})
+                        break  # Move to next payload after first hit
         except Exception as e:
             logger.error(f"Command Injection check failed: {e}")
         finally:
@@ -254,10 +227,12 @@ class AdvancedVulnerabilityScanner:
         try:
             logger.info("Starting Directory Traversal check")
             payloads = self.load_wordlist("wordlists/directory_traversal.txt") or []
-            
+            if not payloads:
+                return
+                
             for payload in payloads:
                 res = self.safe_request('GET', self.target_url + payload)
-                if res and ("root:x" in res.text or "[extensions]" in res.text):
+                if res and res.status_code == 200 and ("root:x" in res.text or "[extensions]" in res.text):
                     self.vulnerabilities.append({"type": "Directory Traversal", "payload": payload})
         except Exception as e:
             logger.error(f"Directory Traversal check failed: {e}")
@@ -268,11 +243,13 @@ class AdvancedVulnerabilityScanner:
         try:
             logger.info("Starting Open Redirect check")
             payloads = self.load_wordlist("wordlists/open_redirect.txt") or []
-            
+            if not payloads:
+                return
+                
             for payload in payloads:
                 redirect_url = f"{self.target_url}?next={payload}"
                 res = self.safe_request('GET', redirect_url, allow_redirects=False)
-                if res and res.status_code in [301, 302] and payload.replace("//", "") in res.headers.get("Location", ""):
+                if res and res.status_code in [301, 302] and payload in res.headers.get("Location", ""):
                     self.vulnerabilities.append({"type": "Open Redirect", "payload": payload})
         except Exception as e:
             logger.error(f"Open Redirect check failed: {e}")
@@ -283,11 +260,13 @@ class AdvancedVulnerabilityScanner:
         try:
             logger.info("Starting Auth Bypass check")
             paths = self.load_wordlist("wordlists/auth_bypass.txt") or []
-            
+            if not paths:
+                return
+                
             for path in paths:
                 url = urljoin(self.target_url, path)
                 res = self.safe_request('GET', url)
-                if res and res.status_code == 200 and ("Welcome" in res.text or "admin" in res.text):
+                if res and res.status_code == 200 and ("Welcome" in res.text or "admin" in res.text or "dashboard" in res.text):
                     self.vulnerabilities.append({"type": "Auth Bypass", "url": path})
         except Exception as e:
             logger.error(f"Auth Bypass check failed: {e}")
@@ -323,7 +302,9 @@ class AdvancedVulnerabilityScanner:
         try:
             logger.info("Starting Info Disclosure check")
             paths = self.load_wordlist("wordlists/info_disclosure_paths.txt") or []
-            
+            if not paths:
+                return
+                
             for path in paths:
                 url = urljoin(self.target_url, path)
                 res = self.safe_request('GET', url)
@@ -338,60 +319,47 @@ class AdvancedVulnerabilityScanner:
         try:
             logger.info("Starting CRLF Injection check")
             payloads = self.load_wordlist("wordlists/crlf.txt") or []
-            
+            if not payloads:
+                return
+                
             for payload in payloads:
                 res = self.safe_request('GET', self.target_url + payload)
-                if res and ("injected" in res.headers.get("Set-Cookie", "") or "injected" in res.headers.get("Location", "")):
+                if res and "injected" in res.headers.get("Set-Cookie", ""):
                     self.vulnerabilities.append({"type": "CRLF Injection", "payload": payload})
         except Exception as e:
             logger.error(f"CRLF Injection check failed: {e}")
         finally:
             logger.info("Completed CRLF Injection check")
 
-    def check_ssl_configuration(self):
+    def check_ssl_issues(self):
         try:
-            logger.info("Starting SSL/TLS Configuration check")
-            # Try to connect with SSL verification
+            logger.info("Starting SSL/TLS check")
+            hostname = urlparse(self.target_url).hostname
+            port = 443
+            
             try:
-                res = requests.get(self.target_url, verify=True, timeout=10)
-                self.ssl_verified = True
-            except requests.exceptions.SSLError as e:
+                # Try to get certificate
+                cert = ssl.get_server_certificate((hostname, port))
+                logger.info(f"SSL certificate found for {hostname}")
+            except Exception as e:
+                logger.error(f"SSL certificate error: {str(e)}")
                 self.vulnerabilities.append({
                     "type": "SSL/TLS Issue",
-                    "detail": f"Certificate verification failed: {str(e)}"
+                    "detail": f"Certificate error: {str(e)}"
                 })
-            
-            # Check for weak protocols
-            weak_protocols = ['SSLv2', 'SSLv3', 'TLSv1', 'TLSv1.1']
-            for protocol in weak_protocols:
-                try:
-                    context = ssl.SSLContext(protocol=getattr(ssl, f"PROTOCOL_{protocol}"))
-                    res = requests.get(self.target_url, verify=False, timeout=10)
-                    self.vulnerabilities.append({
-                        "type": "SSL/TLS Issue",
-                        "detail": f"Weak protocol enabled: {protocol}"
-                    })
-                except:
-                    continue
-            
-            # Check for insecure ciphers
-            insecure_ciphers = ['RC4', 'DES', '3DES', 'MD5', 'SHA1']
-            # This would require more advanced scanning tools like testssl.sh
-            
+                
         except Exception as e:
-            logger.error(f"SSL Configuration check failed: {e}")
+            logger.error(f"SSL check failed: {e}")
         finally:
-            logger.info("Completed SSL/TLS Configuration check")
+            logger.info("Completed SSL/TLS check")
 
     def scan(self):
         logger.info(f"Starting scan of: {self.target_url}")
         start_time = time.time()
         
-        # First check SSL configuration
-        self.check_ssl_configuration()
-        
         # Run all checks
         checks = [
+            self.check_ssl_issues,
             self.check_security_headers,
             self.check_clickjacking,
             self.check_open_redirect,
