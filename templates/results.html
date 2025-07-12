@@ -3,124 +3,225 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Scan Results</title>
+  <title>Scan Results - Vulnerability Scanner</title>
   <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path d='M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z'/></svg>" type="image/svg+xml">
   <style>
     .vulnerability-item {
-      transition: all 0.3s ease;
+      transition: all 0.2s ease;
     }
     .vulnerability-item:hover {
       transform: translateY(-2px);
-      box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
     }
     .severity-high {
-      background-color: #fee2e2;
-      border-color: #ef4444;
+      background-color: #fef2f2;
+      border-left: 4px solid #ef4444;
     }
     .severity-medium {
-      background-color: #fef3c7;
-      border-color: #f59e0b;
+      background-color: #fffbeb;
+      border-left: 4px solid #f59e0b;
     }
     .severity-low {
-      background-color: #dbeafe;
-      border-color: #3b82f6;
+      background-color: #eff6ff;
+      border-left: 4px solid #3b82f6;
+    }
+    .severity-info {
+      background-color: #f0fdfa;
+      border-left: 4px solid #14b8a6;
     }
     pre {
       white-space: pre-wrap;
-      word-break: break-all;
+      word-break: break-word;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+    }
+    .copy-btn {
+      transition: all 0.2s ease;
+    }
+    .copy-btn:hover {
+      background-color: #4b5563;
+    }
+    .copy-btn.copied {
+      background-color: #10b981;
+    }
+    .scrollbar-custom::-webkit-scrollbar {
+      width: 8px;
+    }
+    .scrollbar-custom::-webkit-scrollbar-track {
+      background: #f1f5f9;
+    }
+    .scrollbar-custom::-webkit-scrollbar-thumb {
+      background: #cbd5e1;
+      border-radius: 4px;
+    }
+    .scrollbar-custom::-webkit-scrollbar-thumb:hover {
+      background: #94a3b8;
     }
   </style>
 </head>
-<body class="bg-gray-100 min-h-screen flex items-center justify-center p-6">
-  <div class="bg-white rounded-xl shadow-xl p-8 w-full max-w-4xl">
-    <div class="flex flex-col sm:flex-row justify-between items-start mb-6 gap-4">
-      <div class="flex-1">
-        <h1 class="text-2xl font-bold text-purple-700">Scan Results</h1>
-        <div class="mt-2 text-gray-600 truncate">
-          <span class="font-semibold">URL:</span> {{ scan_url }}
-        </div>
-        <div class="text-gray-600">
-          <span class="font-semibold">Time:</span> {{ scan_time }}
-        </div>
-      </div>
-      <a href="/" class="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded transition duration-200 whitespace-nowrap">
-        New Scan
-      </a>
-    </div>
-
-    <!-- Results Summary -->
-    <div class="mb-6 p-4 rounded-lg 
-                {% if vulnerabilities %} bg-red-100 text-red-800
-                {% else %} bg-green-100 text-green-800 {% endif %}">
-      <div class="flex items-center">
-        <span class="text-xl mr-3">
-          {% if vulnerabilities %} ⚠️ {% else %} ✅ {% endif %}
-        </span>
-        <span class="font-semibold">
-          {% if vulnerabilities %}
-            {{ vulnerabilities|length }} vulnerability{{ 'ies' if vulnerabilities|length != 1 else 'y' }} found
-          {% else %}
-            No vulnerabilities found!
-          {% endif %}
-        </span>
-      </div>
-    </div>
-
-    <!-- Vulnerability List -->
-    {% if vulnerabilities %}
-    <div class="space-y-4 max-h-[60vh] overflow-y-auto pr-2">
-      {% for vuln in vulnerabilities %}
-        {% if vuln.type in ['SQL Injection', 'Command Injection', 'Directory Traversal'] %}
-          {% set severity_class = 'severity-high' %}
-          {% set severity_text = 'High' %}
-        {% elif vuln.type in ['XSS', 'Auth Bypass', 'CRLF Injection'] %}
-          {% set severity_class = 'severity-medium' %}
-          {% set severity_text = 'Medium' %}
-        {% else %}
-          {% set severity_class = 'severity-low' %}
-          {% set severity_text = 'Low' %}
-        {% endif %}
-        
-        <div class="vulnerability-item border-l-4 pl-4 py-3 rounded-r {{ severity_class }}">
-          <div class="flex flex-col sm:flex-row justify-between gap-2">
-            <div>
-              <h3 class="font-bold text-lg">{{ vuln.type }}</h3>
-              {% if vuln.payload %}
-                <div class="mt-1">
-                  <span class="font-medium">Payload:</span>
-                  <pre class="bg-gray-800 text-green-400 p-2 rounded mt-1 text-sm">{{ vuln.payload }}</pre>
-                </div>
-              {% elif vuln.url %}
-                <div class="mt-1">
-                  <span class="font-medium">Path:</span>
-                  <pre class="bg-gray-800 text-green-400 p-2 rounded mt-1 text-sm">{{ vuln.url }}</pre>
-                </div>
-              {% elif vuln.detail %}
-                <p class="mt-1 text-gray-700">{{ vuln.detail }}</p>
-              {% endif %}
-            </div>
-            <span class="px-3 py-1 rounded-full self-start sm:self-center
-                        {% if severity_text == 'High' %} bg-red-200 text-red-800
-                        {% elif severity_text == 'Medium' %} bg-yellow-200 text-yellow-800
-                        {% else %} bg-blue-200 text-blue-800 {% endif %}">
-              {{ severity_text }}
-            </span>
+<body class="bg-gray-50 min-h-screen p-4">
+  <div class="max-w-4xl mx-auto bg-white rounded-xl shadow-lg overflow-hidden">
+    <div class="bg-gradient-to-r from-purple-600 to-indigo-700 p-6 text-white">
+      <div class="flex flex-col sm:flex-row justify-between items-start gap-4">
+        <div class="flex-1">
+          <h1 class="text-2xl font-bold flex items-center">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+            </svg>
+            Scan Results
+          </h1>
+          <div class="mt-3">
+            <div class="font-semibold opacity-90">Scanned URL:</div>
+            <div class="truncate font-mono text-sm bg-black/10 p-2 rounded mt-1">{{ scan_url }}</div>
+          </div>
+          <div class="mt-2">
+            <div class="font-semibold opacity-90">Scan Time:</div>
+            <div>{{ scan_time }}</div>
           </div>
         </div>
-      {% endfor %}
-    </div>
-    {% else %}
-    <div class="text-center py-8">
-      <div class="text-5xl mb-4">🎉</div>
-      <h2 class="text-xl font-semibold text-gray-800">No Vulnerabilities Found!</h2>
-      <p class="text-gray-600 mt-2">The target appears secure for the tested vulnerabilities.</p>
-      <div class="mt-6">
-        <a href="/" class="inline-block bg-purple-600 hover:bg-purple-700 text-white px-6 py-2 rounded transition duration-200">
-          Scan Another Website
+        <a href="/" class="bg-white text-purple-600 hover:bg-gray-100 px-4 py-2 rounded-lg transition duration-200 whitespace-nowrap font-medium flex items-center">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+          </svg>
+          New Scan
         </a>
       </div>
     </div>
-    {% endif %}
+
+    <div class="p-6">
+      <!-- Results Summary -->
+      <div class="mb-6 p-4 rounded-lg 
+                  {% if vulnerabilities %} bg-red-50 border border-red-100 text-red-800
+                  {% else %} bg-green-50 border border-green-100 text-green-800 {% endif %}">
+        <div class="flex items-center">
+          <span class="text-xl mr-3">
+            {% if vulnerabilities %} ⚠️ {% else %} ✅ {% endif %}
+          </span>
+          <span class="font-semibold">
+            {% if vulnerabilities %}
+              {{ vulnerabilities|length }} vulnerability{{ 'ies' if vulnerabilities|length != 1 else 'y' }} found
+            {% else %}
+              No vulnerabilities found!
+            {% endif %}
+          </span>
+        </div>
+        <p class="mt-2 text-sm">
+          {% if vulnerabilities %}
+            Critical security issues require immediate attention
+          {% else %}
+            No common vulnerabilities detected in this scan
+          {% endif %}
+        </p>
+      </div>
+
+      <!-- Vulnerability List -->
+      {% if vulnerabilities %}
+      <div class="space-y-4 max-h-[60vh] overflow-y-auto pr-2 scrollbar-custom">
+        {% for vuln in vulnerabilities %}
+          {% if vuln.type in ['SQL Injection', 'Command Injection', 'Directory Traversal'] %}
+            {% set severity_class = 'severity-high' %}
+            {% set severity_text = 'High' %}
+          {% elif vuln.type in ['XSS', 'Auth Bypass', 'CRLF Injection'] %}
+            {% set severity_class = 'severity-medium' %}
+            {% set severity_text = 'Medium' %}
+          {% elif vuln.type in ['Missing Security Header', 'Clickjacking'] %}
+            {% set severity_class = 'severity-low' %}
+            {% set severity_text = 'Low' %}
+          {% else %}
+            {% set severity_class = 'severity-info' %}
+            {% set severity_text = 'Info' %}
+          {% endif %}
+          
+          <div class="vulnerability-item pl-4 py-3 rounded {{ severity_class }}">
+            <div class="flex flex-col sm:flex-row justify-between gap-2">
+              <div class="flex-1">
+                <div class="flex items-start justify-between">
+                  <h3 class="font-bold text-lg">{{ vuln.type }}</h3>
+                  <span class="px-3 py-1 rounded-full text-sm font-medium
+                              {% if severity_text == 'High' %} bg-red-100 text-red-800
+                              {% elif severity_text == 'Medium' %} bg-amber-100 text-amber-800
+                              {% elif severity_text == 'Low' %} bg-blue-100 text-blue-800
+                              {% else %} bg-teal-100 text-teal-800 {% endif %}">
+                    {{ severity_text }}
+                  </span>
+                </div>
+                
+                {% if vuln.payload %}
+                  <div class="mt-3">
+                    <div class="font-medium text-sm text-gray-700">Payload:</div>
+                    <div class="relative mt-1">
+                      <pre class="bg-gray-800 text-green-400 p-3 rounded text-sm overflow-x-auto">{{ vuln.payload }}</pre>
+                      <button class="copy-btn absolute top-2 right-2 bg-gray-700 text-white text-xs px-2 py-1 rounded" 
+                              data-text="{{ vuln.payload }}">
+                        Copy
+                      </button>
+                    </div>
+                  </div>
+                {% elif vuln.url %}
+                  <div class="mt-3">
+                    <div class="font-medium text-sm text-gray-700">Path:</div>
+                    <div class="relative mt-1">
+                      <pre class="bg-gray-800 text-green-400 p-3 rounded text-sm overflow-x-auto">{{ vuln.url }}</pre>
+                      <button class="copy-btn absolute top-2 right-2 bg-gray-700 text-white text-xs px-2 py-1 rounded" 
+                              data-text="{{ vuln.url }}">
+                        Copy
+                      </button>
+                    </div>
+                  </div>
+                {% elif vuln.detail %}
+                  <div class="mt-3">
+                    <div class="font-medium text-sm text-gray-700">Details:</div>
+                    <p class="mt-1 bg-gray-50 p-3 rounded text-gray-700">{{ vuln.detail }}</p>
+                  </div>
+                {% endif %}
+              </div>
+            </div>
+          </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <div class="text-center py-8">
+        <div class="inline-block bg-green-100 p-4 rounded-full mb-4">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-12 w-12 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+        </div>
+        <h2 class="text-xl font-semibold text-gray-800">No Vulnerabilities Found!</h2>
+        <p class="text-gray-600 mt-2 max-w-md mx-auto">
+          The target appears secure against common web vulnerabilities. Note that this scan doesn't guarantee complete security.
+        </p>
+        <div class="mt-6">
+          <a href="/" class="inline-flex items-center bg-purple-600 hover:bg-purple-700 text-white px-6 py-2 rounded-lg transition duration-200 font-medium">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
+            Scan Another Website
+          </a>
+        </div>
+      </div>
+      {% endif %}
+    </div>
   </div>
+
+  <script>
+    // Copy functionality
+    document.querySelectorAll('.copy-btn').forEach(button => {
+      button.addEventListener('click', function() {
+        const text = this.getAttribute('data-text');
+        navigator.clipboard.writeText(text).then(() => {
+          const originalText = this.textContent;
+          this.textContent = 'Copied!';
+          this.classList.add('copied');
+          
+          setTimeout(() => {
+            this.textContent = originalText;
+            this.classList.remove('copied');
+          }, 2000);
+        }).catch(err => {
+          console.error('Failed to copy: ', err);
+        });
+      });
+    });
+  </script>
 </body>
 </html>
