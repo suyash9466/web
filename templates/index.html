@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>URL Vulnerability Scanner</title>
   <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path d='M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z'/></svg>" type="image/svg+xml">
   <style>
     @keyframes pulse {
       0%, 100% { opacity: 1; }
@@ -13,42 +14,75 @@
     .animate-pulse-custom {
       animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
     }
+    #url-input:focus {
+      box-shadow: 0 0 0 3px rgba(126, 58, 242, 0.3);
+    }
   </style>
 </head>
-<body class="bg-gray-100 min-h-screen flex items-center justify-center p-6">
-  <div class="bg-white rounded-xl shadow-xl p-8 w-full max-w-2xl">
-    <h1 class="text-2xl font-bold text-purple-700 mb-4">Vulnerability Scanner</h1>
+<body class="bg-gray-50 min-h-screen flex items-center justify-center p-4">
+  <div class="bg-white rounded-xl shadow-lg p-6 w-full max-w-2xl">
+    <div class="flex items-center justify-center mb-6">
+      <div class="bg-purple-100 p-3 rounded-full mr-3">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-purple-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.618 5.984A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016zM12 9v2m0 4h.01" />
+        </svg>
+      </div>
+      <h1 class="text-2xl font-bold text-gray-800">Vulnerability Scanner</h1>
+    </div>
+
+    <p class="text-gray-600 mb-6 text-center">
+      Enter a URL to scan for security vulnerabilities
+    </p>
 
     <!-- Input Field -->
-    <input
-      id="url-input"
-      type="url"
-      required
-      placeholder="https://example.com or http://localhost"
-      class="w-full p-3 border rounded mb-4 focus:ring-2 focus:ring-purple-500 focus:outline-none"
-    />
+    <div class="mb-4">
+      <label for="url-input" class="block text-sm font-medium text-gray-700 mb-1">Website URL</label>
+      <input
+        id="url-input"
+        type="url"
+        required
+        autocomplete="off"
+        autocapitalize="off"
+        spellcheck="false"
+        placeholder="https://example.com or http://localhost:5000"
+        class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+      />
+    </div>
 
     <!-- Scan Button -->
     <button
       id="scan-btn"
-      class="bg-purple-600 text-white px-6 py-2 rounded hover:bg-purple-700 transition duration-200 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-opacity-50"
-    >Scan</button>
+      class="w-full bg-purple-600 text-white px-6 py-3 rounded-lg hover:bg-purple-700 transition duration-200 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 font-medium flex items-center justify-center"
+    >
+      <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+      </svg>
+      Scan Website
+    </button>
 
     <!-- Loading Indicator -->
-    <div id="loading" class="mt-4 hidden">
-      <div class="flex items-center">
-        <div class="w-5 h-5 mr-3">
-          <svg class="animate-spin h-5 w-5 text-purple-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+    <div id="loading" class="mt-6 hidden">
+      <div class="flex items-center justify-center">
+        <div class="w-6 h-6 mr-3">
+          <svg class="animate-spin h-6 w-6 text-purple-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
             <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
             <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
           </svg>
         </div>
-        <p class="text-gray-600 animate-pulse-custom">Scanning website. This may take a minute...</p>
+        <p class="text-gray-600 animate-pulse-custom">Scanning website. This may take 1-2 minutes...</p>
       </div>
+      <p class="text-center text-gray-500 text-sm mt-2">Please don't close this window</p>
     </div>
 
     <!-- Error Box -->
-    <div id="error-box" class="mt-4 p-3 bg-red-100 text-red-700 rounded hidden"></div>
+    <div id="error-box" class="mt-4 p-4 bg-red-50 border border-red-200 text-red-700 rounded-lg hidden"></div>
+
+    <div class="mt-8 pt-6 border-t border-gray-100">
+      <p class="text-center text-gray-500 text-sm">
+        Scans for common vulnerabilities: XSS, SQLi, CSRF, Command Injection,<br>
+        Directory Traversal, Info Disclosure, and more
+      </p>
+    </div>
   </div>
 
   <script>
@@ -57,10 +91,26 @@
     const loading = document.getElementById("loading");
     const errorBox = document.getElementById("error-box");
 
+    // Handle Enter key press
+    urlInput.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        scanBtn.click();
+      }
+    });
+
     scanBtn.addEventListener("click", () => {
       const url = urlInput.value.trim();
+      
+      // Basic URL validation
       if (!url) {
         showError("Please enter a valid URL");
+        return;
+      }
+      
+      try {
+        new URL(url);
+      } catch (e) {
+        showError("Invalid URL format. Please include http:// or https://");
         return;
       }
 
@@ -69,6 +119,9 @@
       errorBox.classList.add("hidden");
       scanBtn.disabled = true;
       urlInput.disabled = true;
+      scanBtn.innerHTML = '<span class="flex items-center"><svg class="animate-spin h-5 w-5 mr-2 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> Scanning...</span>';
+      scanBtn.classList.remove('hover:bg-purple-700');
+      scanBtn.classList.add('bg-purple-500');
 
       fetch("/scan", {
         method: "POST",
@@ -76,19 +129,13 @@
         body: JSON.stringify({ url })
       })
       .then(async res => {
-        const contentType = res.headers.get("content-type");
-        
-        if (!contentType || !contentType.includes("application/json")) {
-          const text = await res.text();
-          throw new Error(`Server error: ${text.slice(0, 100)}`);
-        }
-        
-        const data = await res.json();
         if (!res.ok) {
-          throw new Error(data.error + (data.details ? `: ${data.details}` : ''));
+          const errorData = await res.json();
+          throw new Error(errorData.error || 'Scan failed');
         }
-        
-        // Redirect to results page
+        return res.json();
+      })
+      .then(data => {
         if (data.redirect) {
           window.location.href = data.redirect;
         } else {
@@ -102,12 +149,16 @@
         loading.classList.add("hidden");
         scanBtn.disabled = false;
         urlInput.disabled = false;
+        scanBtn.innerHTML = '<span class="flex items-center"><svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg> Scan Website</span>';
+        scanBtn.classList.add('hover:bg-purple-700');
+        scanBtn.classList.remove('bg-purple-500');
       });
     });
 
     function showError(message) {
       errorBox.textContent = message;
       errorBox.classList.remove("hidden");
+      errorBox.scrollIntoView({ behavior: 'smooth' });
     }
   </script>
 </body>
