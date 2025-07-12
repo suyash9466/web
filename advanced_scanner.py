@@ -12,28 +12,22 @@ import socket
 import urllib3
 from urllib3.exceptions import InsecureRequestWarning
 
-# Suppress SSL warnings
 urllib3.disable_warnings(InsecureRequestWarning)
 
 app = Flask(__name__, template_folder="templates")
 
-# Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
-
-# Set a secret key for session management
 app.secret_key = os.environ.get('SECRET_KEY', 'default-secret-key')
 
 class AdvancedVulnerabilityScanner:
     def __init__(self, target_url):
-        # Validate URL format
         parsed = urlparse(target_url)
         if not parsed.scheme or not parsed.netloc:
             raise ValueError("Invalid URL format")
         
         self.target_url = target_url if target_url.endswith('/') else target_url + '/'
         
-        # Configure session with browser-like headers
         self.session = requests.Session()
         self.session.headers = {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
@@ -46,14 +40,11 @@ class AdvancedVulnerabilityScanner:
             "DNT": "1"
         }
         
-        # SSL certificate handling
-        self.session.verify = False  # Disable SSL verification by default
+        self.session.verify = False
         self.cert_details = {}
-        
-        # Timeout and retry configuration
         self.timeout = 30
         self.retries = 2
-        self.delay = random.uniform(0.5, 2.0)  # Random delay between requests
+        self.delay = random.uniform(0.5, 2.0)
         
         self.vulnerabilities = []
         logger.info(f"Scanner initialized for: {self.target_url}")
@@ -62,14 +53,11 @@ class AdvancedVulnerabilityScanner:
         """Robust request handling with retries and delays"""
         for attempt in range(self.retries + 1):
             try:
-                # Random delay to mimic human behavior
                 time.sleep(self.delay)
                 
-                # Set default timeout
                 if 'timeout' not in kwargs:
                     kwargs['timeout'] = self.timeout
                     
-                # Always disable SSL verification for now
                 kwargs['verify'] = False
                     
                 response = self.session.request(method, url, **kwargs)
@@ -85,7 +73,7 @@ class AdvancedVulnerabilityScanner:
             except requests.exceptions.RequestException as e:
                 logger.warning(f"Request failed (attempt {attempt+1}/{self.retries+1}): {str(e)}")
                 if attempt < self.retries:
-                    wait_time = 2 ** attempt  # Exponential backoff
+                    wait_time = 2 ** attempt 
                     logger.info(f"Retrying in {wait_time} seconds...")
                     time.sleep(wait_time)
                 else:
@@ -146,8 +134,7 @@ class AdvancedVulnerabilityScanner:
         except Exception as e:
             logger.error(f"Error submitting form: {e}")
             return None
-
-    # Vulnerability checks
+            
     def check_xss(self):
         try:
             logger.info("Starting XSS check")
@@ -162,7 +149,7 @@ class AdvancedVulnerabilityScanner:
                     res = self.submit_form(form, payload, self.target_url)
                     if res and res.status_code == 200 and payload in res.text:
                         self.vulnerabilities.append({"type": "XSS", "payload": payload})
-                        break  # Move to next payload after first hit
+                        break
         except Exception as e:
             logger.error(f"XSS check failed: {e}")
         finally:
@@ -183,7 +170,7 @@ class AdvancedVulnerabilityScanner:
                     res = self.submit_form(form, payload, self.target_url)
                     if res and res.status_code == 200 and any(err in res.text.lower() for err in errors):
                         self.vulnerabilities.append({"type": "SQL Injection", "payload": payload})
-                        break  # Move to next payload after first hit
+                        break 
         except Exception as e:
             logger.error(f"SQL Injection check failed: {e}")
         finally:
@@ -217,7 +204,7 @@ class AdvancedVulnerabilityScanner:
                     res = self.submit_form(form, payload, self.target_url)
                     if res and res.status_code == 200 and any(ind in res.text.lower() for ind in indicators):
                         self.vulnerabilities.append({"type": "Command Injection", "payload": payload})
-                        break  # Move to next payload after first hit
+                        break  
         except Exception as e:
             logger.error(f"Command Injection check failed: {e}")
         finally:
@@ -338,7 +325,6 @@ class AdvancedVulnerabilityScanner:
             port = 443
             
             try:
-                # Try to get certificate
                 cert = ssl.get_server_certificate((hostname, port))
                 logger.info(f"SSL certificate found for {hostname}")
             except Exception as e:
@@ -357,7 +343,6 @@ class AdvancedVulnerabilityScanner:
         logger.info(f"Starting scan of: {self.target_url}")
         start_time = time.time()
         
-        # Run all checks
         checks = [
             self.check_ssl_issues,
             self.check_security_headers,
@@ -398,8 +383,7 @@ def scan_api():
         logger.info(f"Starting scan for: {data['url']}")
         scanner = AdvancedVulnerabilityScanner(data['url'])
         vulnerabilities = scanner.scan()
-        
-        # Store results in session
+
         session['vulnerabilities'] = vulnerabilities
         session['scan_url'] = data['url']
         session['scan_time'] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -426,11 +410,9 @@ def results():
     )
 
 if __name__ == '__main__':
-    # Use environment variable for debug mode
     debug_mode = os.environ.get("FLASK_DEBUG", "false").lower() == "true"
     port = int(os.environ.get("PORT", 5000))
     
-    # Configure logging level
     if debug_mode:
         logging.getLogger().setLevel(logging.DEBUG)
     else:
